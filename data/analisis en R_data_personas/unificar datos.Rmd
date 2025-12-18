@@ -1,0 +1,82 @@
+---
+title: "unificar datos"
+author: "Camila Reyes Vera"
+date: "2025-12-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+# Ruta a la carpeta
+ruta_personas <- "Personas"
+
+# Listar todos los archivos CSV
+archivos_csv <- list.files(
+  path = ruta_personas,
+  pattern = "\\.csv$",
+  full.names = TRUE
+)
+
+# Leer todos los CSV y guardarlos como data frames en una lista
+dfs_personas <- lapply(archivos_csv, read.csv)
+
+# (Opcional) asignar nombres a cada df según el nombre del archivo
+names(dfs_personas) <- tools::file_path_sans_ext(basename(archivos_csv))
+
+```
+
+
+```{r}
+convert_time_to_datetime <- function(df, start_time) {
+  df$datetime <- as.POSIXct(start_time) + df$Time
+  return(df)
+}
+
+#dfs_personas <- lapply(
+#  dfs_personas,
+#  convert_time_to_datetime,
+#  start_time = "2025-01-01 00:00:00"
+#)
+
+
+
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+dfs_personas[1]
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r pressure, echo=FALSE}
+df_total <- do.call(rbind, dfs_personas)
+
+df_total <- df_total[order(df_total$Time), ]
+
+row.names(df_total) <- NULL
+
+str(df_total)
+
+write.csv(
+  df_total,
+  file = "../personas.csv",
+  row.names = FALSE
+)
+
+```
+
