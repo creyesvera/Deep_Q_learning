@@ -3,9 +3,9 @@
     "path": "~/GitHub/Deep_Q_learning/data/analisis en R_data_personas/unificar datos.Rmd",
     "project_path": "unificar datos.Rmd",
     "type": "r_markdown",
-    "hash": "1582669948",
+    "hash": "0",
     "contents": "",
-    "dirty": true,
+    "dirty": false,
     "created": 1766066435824.0,
     "source_on_save": false,
     "relative_order": 1,
@@ -18,11 +18,11 @@
         "last_setup_crc32": "607829b9bb338d19"
     },
     "folds": "",
-    "lastKnownWriteTime": 1766068055,
+    "lastKnownWriteTime": 1766068328,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1766068055299,
+    "last_content_update": 1766068328030,
     "read_only": false,
     "read_only_alternatives": []
 }
