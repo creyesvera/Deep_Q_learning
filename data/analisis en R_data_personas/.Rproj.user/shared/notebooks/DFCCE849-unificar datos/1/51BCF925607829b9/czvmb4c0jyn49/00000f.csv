@@ -1,5 +1,0 @@
-"0","df_total <- do.call(rbind, dfs_personas)"
-"0",""
-"0","df_total <- df_total[order(df_total$Time), ]"
-"2","Error en order(df_total$Time): argumento 1 no es un vector
-"

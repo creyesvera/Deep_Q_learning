@@ -1,0 +1,68 @@
+[
+  {
+    "idx": 0,
+    "temp_in": 27.5,
+    "temp_out": 31.2,
+    "ac": false,
+    "clases": 0,
+    "thermal": 2,
+    "n_personas": 0,
+    "ubicacion": "Perimetral",
+    "action": 0
+  },
+  {
+    "idx": 1,
+    "temp_in": 26.8,
+    "temp_out": 31.0,
+    "ac": true,
+    "clases": 1,
+    "thermal": 2,
+    "n_personas": 5,
+    "ubicacion": "Centro",
+    "action": 1
+  },
+  {
+    "idx": 2,
+    "temp_in": 25.9,
+    "temp_out": 30.5,
+    "ac": true,
+    "clases": 1,
+    "thermal": 1,
+    "n_personas": 12,
+    "ubicacion": "Centro",
+    "action": 2
+  },
+  {
+    "idx": 3,
+    "temp_in": 24.8,
+    "temp_out": 29.9,
+    "ac": true,
+    "clases": 2,
+    "thermal": 1,
+    "n_personas": 18,
+    "ubicacion": "Zona ventanas",
+    "action": 2
+  },
+  {
+    "idx": 4,
+    "temp_in": 23.9,
+    "temp_out": 29.4,
+    "ac": true,
+    "clases": 2,
+    "thermal": 0,
+    "n_personas": 20,
+    "ubicacion": "Zona ventanas",
+    "action": 3
+  },
+  {
+    "idx": 5,
+    "temp_in": 24.2,
+    "temp_out": 29.0,
+    "ac": false,
+    "clases": 2,
+    "thermal": 1,
+    "n_personas": 20,
+    "ubicacion": "Zona ventanas",
+    "action": 4
+  }
+]

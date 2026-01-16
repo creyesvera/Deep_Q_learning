@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-from IPython.display import display
-import ipywidgets as widgets
 import pandas as pd
 import os
 from environment import ACTIONS
+
+
+
+
 
 def archivo_a_dataframe(ruta_archivo):
   # Verificar que el archivo existe
@@ -42,35 +44,6 @@ def archivo_a_dataframe(ruta_archivo):
 
 
 
-
-
-def graficar_datos(df_pivot):
-
-  # Obtener columnas de datos disponibles (excluyendo 'sensedAt', 'Fecha', 'Hora')
-  value_columns = df_pivot.columns.tolist()
-  columns_to_remove = ['sensedAt', 'Fecha', 'Hora']
-  value_columns = [col for col in value_columns if col not in columns_to_remove]
-
-  if not value_columns:
-      print("No hay columnas numéricas para graficar.")
-      return
-
-  # Crear widgets
-  value_dropdown = widgets.Dropdown(
-      options=value_columns,
-      description='Seleccione el valor:',
-      disabled=False,
-  )
-
-  plot_button = widgets.Button(
-      description='Mostrar Gráfica',
-      disabled=False,
-      button_style='success',
-      tooltip='Mostrar gráfica',
-      icon='bar-chart'
-  )
-
-  output_widget = widgets.Output() # Widget para mostrar la gráfica y mensajes
 
 import numpy as np
 import matplotlib.pyplot as plt

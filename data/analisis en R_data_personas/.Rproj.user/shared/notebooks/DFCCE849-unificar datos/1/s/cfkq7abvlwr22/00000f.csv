@@ -1,0 +1,6 @@
+"0","any(df_total$world_z != 0, na.rm = TRUE)
+"
+"1","[1]"
+"1"," FALSE"
+"1","
+"

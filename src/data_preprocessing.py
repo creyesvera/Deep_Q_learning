@@ -1,292 +1,529 @@
+# -*- coding: utf-8 -*-
 import pandas as pd
+import os
 import numpy as np
 
-def simulate_horario_df():
-    horario = {
-        'Hora': [
-            '7:00-7:30', '7:30-8:00', '8:00-8:30', '8:30-9:00', '9:00-9:30',
-            '9:30-10:00', '10:00-10:30', '10:30-11:00', '11:00-11:30', '11:30-12:00',
-            '12:00-12:30', '12:30-13:00', '13:00-13:30', '13:30-14:00', '14:00-14:30',
-            '14:30-15:00', '15:00-15:30', '15:30-16:00', '16:00-16:30', '16:30-17:00',
-            '17:00-17:30', '17:30-18:00', '18:00-18:30'
-        ],
-        'Lunes': [
-            'Vacío', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases',
-            'Clases', 'Clases', 'Clases', 'Clases', 'Vacío', 'Clases', 'Clases', 'Clases',
-            'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Vacío'
-        ],
-        'Martes': [
-            'Vacío', 'Laboratorio abierto', 'Laboratorio abierto', 'Laboratorio abierto', 'Clases',
-            'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Vacío',
-            'Vacío', 'Laboratorio abierto', 'Laboratorio abierto', 'Laboratorio abierto',
-            'Laboratorio abierto', 'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Vacío'
-        ],
-        'Miércoles': [
-            'Vacío', 'Laboratorio abierto', 'Laboratorio abierto', 'Laboratorio abierto',
-            'Laboratorio abierto', 'Clases', 'Clases', 'Clases', 'Clases', 'Clases',
-            'Clases', 'Clases', 'Clases', 'Clases', 'Clases', 'Vacío', 'Vacío', 'Vacío',
-            'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Vacío'
-        ],
-        'Jueves': [
-            'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Laboratorio abierto', 'Laboratorio abierto',
-            'Laboratorio abierto', 'Laboratorio abierto', 'Laboratorio abierto', 'Clases',
-            'Clases', 'Clases', 'Clases', 'Clases', 'Laboratorio abierto', 'Laboratorio abierto',
-            'Laboratorio abierto', 'Laboratorio abierto', 'Vacío', 'Vacío', 'Vacío', 'Vacío',
-            'Vacío'
-        ],
-        'Viernes': [
-            'Vacío', 'Vacío', 'Vacío', 'Vacío', 'Clases', 'Clases', 'Clases', 'Clases',
-            'Clases', 'Clases', 'Clases', 'Clases', 'Vacío', 'Vacío', 'Laboratorio abierto',
-            'Laboratorio abierto', 'Laboratorio abierto', 'Vacío', 'Vacío', 'Vacío', 'Vacío',
-            'Vacío', 'Vacío'
-        ]
-    }
-    df_horario = pd.DataFrame(horario)
-    def get_activity_type(cell_content):
-        if "Laboratorio abierto" in str(cell_content):
-            return "Clases"
-        elif str(cell_content).strip() and str(cell_content) != 'Vacío':
-            return "Clases"
+
+
+class data_preprocessing():
+    def __init__(self, fechas = None, file_path_horario='data/Horario de clases.xlsx'):
+        self.df_features = None
+        if fechas is not None:
+            df_estacion, df_shelly_iz, df_temp = self.load_data(fechas)
         else:
-            return "No hay clases"
-    for day in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']:
-        df_horario[day] = df_horario[day].apply(get_activity_type)
-    return df_horario
+            df_estacion = pd.read_csv('data/df_estacion.csv')
+            df_shelly_iz = pd.read_csv('data/df_shelly_iz.csv')
+            df_temp = pd.read_csv('data/df_temp.csv')
+
+        self.unify_Hayiot_data(self, df_estacion, df_shelly_iz, df_temp)
+
+        #self.df_features deja de ser None
+
+        df_horario = self.load_schedule(self, file_path_horario)
+        self.simulate_n_personas(self, df_horario)
+        self.simulate_person_locations(self)
+        self.simulate_thermal_opinion(self)
+
+        #output_file_path = 'LIVE_data/df_features.csv'
+        #self.df_features.to_csv(output_file_path, index=False)
+
+        return self.df_features
+
+    def load_data(fechas):
+
+        df_estacion = pd.read_csv('data/df_estacion.csv')
+        df_shelly_iz = pd.read_csv('data/df_shelly_iz.csv')
+        df_temp = pd.read_csv('data/df_temp.csv')
+
+        return df_estacion, df_shelly_iz, df_temp
+
+    # =============================================================================================
+    # =============================================================================================
+    # Archivo de HAYIOT cargados en 
+    # file_path_estacion = '/content/Deep_Q_learning/data/df_estacion.csv'
+    # file_path_shelly_iz = '/content/Deep_Q_learning/data/df_shelly_iz.csv'
+    # file_path_temp = '/content/Deep_Q_learning/data/df_temp.csv'
+    # =============================================================================================
+    # =============================================================================================
 
 
-def discretize_temp_interna(df):
-    bins = [15, 23, 30, 38]
-    labels = [0, 1, 2]
-    df['temp_discretizada'] = pd.cut(df['temp'], bins=bins, labels=labels, right=False)
-    return df
+    def unify_Hayiot_data(self, df_estacion, df_shelly_iz, df_temp):
+        #df_estacion = pd.read_csv(file_path_estacion)
+        #df_shelly_iz = pd.read_csv(file_path_shelly_iz)
+        #df_temp = pd.read_csv(file_path_temp)
 
-def discretize_temp_externa(df):
-    bins = [20, 24, 30, 35]
-    labels = [0, 1, 2]
-    df['temp_discretizada'] = pd.cut(df['temp'], bins=bins, labels=labels, right=False)
-    return df
+        list_sensedAt= pd.concat([df_estacion['sensedAt'],df_shelly_iz['sensedAt'],df_temp['sensedAt']]).unique()
+        np.sort(list_sensedAt)
 
-def discretize_estado_aire(df):
-    df['estado_del_aire'] = (df['potencia_A'] > 20).astype(int)
-    return df
 
-def discretize_n_personas(df):
-    def map_n_personas(val):
-        if val == 0:
-            return 0
-        elif 1 <= val <= 10:
-            return 1
-        elif 11 <= val <= 20:
-            return 2
+        for df in [df_estacion, df_shelly_iz, df_temp]:
+            df['sensedAt'] = pd.to_datetime(df['sensedAt'], format='mixed')
+
+        all_sensedAt = (
+            pd.concat([
+                df_estacion['sensedAt'],
+                df_shelly_iz['sensedAt'],
+                df_temp['sensedAt']
+            ])
+            .drop_duplicates()
+            .sort_values()
+            .reset_index(drop=True)
+        )
+
+        self.df_features = (
+            pd.DataFrame({'sensedAt': sorted(all_sensedAt)})
+            .reset_index(drop=True)
+        )
+        self.df_features = self.df_features.merge(
+            df_estacion[['sensedAt', 'temp']]
+                .rename(columns={'temp': 'temp_externa'}),
+            on='sensedAt',
+            how='left'
+        )
+        self.df_features = self.df_features.merge(
+            df_temp[['sensedAt', 'temp']]
+                .rename(columns={'temp': 'temp_interna'}),
+            on='sensedAt',
+            how='left'
+        )
+        self.df_features = self.df_features.merge(
+            df_shelly_iz[['sensedAt', 'potencia_A']],
+            on='sensedAt',
+            how='left'
+        )
+
+
+        self.df_features['Fecha'] = self.df_features['sensedAt'].dt.date
+        self.df_features['Hora']  = self.df_features['sensedAt'].dt.time
+        self.df_features = self.df_features[
+            ['sensedAt', 'Fecha', 'Hora',
+            'temp_externa', 'temp_interna', 'potencia_A']
+        ]
+
+        self.df_features['estado del aire'] = (self.df_features['potencia_A'] > 20).astype(int)
+
         return None
-    df['n_personas_discretizada'] = df['n_personas'].apply(map_n_personas)
-    return df
 
-def discretize_ubicacion(df):
-    def map_ubicacion(val):
-        if val == 'dispersas':
+    # =============================================================================================
+    # =============================================================================================
+    # Archivo de horario cargado en 
+    # file_path_horario = '/content/Deep_Q_learning/data/Horario de clases.xlsx'
+    # =============================================================================================
+    # =============================================================================================
+
+    def time_to_minutes(t):
+        h, m = map(int, t.split(':'))
+        return h * 60 + m
+
+    # ==============================
+    # MAPEO DE ACTIVIDADES
+    # ==============================
+    def map_activity(val):
+        if pd.isna(val):
             return 0
-        elif val == 'agrupadas cerca de ventilación':
+        if val == 'Laboratorio abierto':
             return 1
-        elif val == 'agrupadas lejos':
+        if val == 'Clases practicas':
             return 2
-        return None
-    df['ubicacion_discretizada'] = df['ubicacion'].apply(map_ubicacion)
-    return df
-
-def discretize_opinion_termica(df):
-    def map_opinion(val):
-        if val == "Frío":
-            return 0
-        elif val == "Cómodo":
-            return 1
-        elif val == "Calor":
-            return 2
-        return None
-    df['opinion_termica_discretizada'] = df['opinion'].apply(map_opinion)
-    return df
+        return 0
 
 
-def build_df_features(dfs, flags):
-    """
-    Receives all dataframes and simulation flags from process_files.
-    Simulates horario if needed, discretizes all non-empty dataframes, and merges them into one features table.
-    Simulated variables are added at the end if needed.
-    Returns the final df_features dataframe.
-    """
-    # Discretize all available dataframes
-    result = {}
-    # Horario
-    if flags.get('horario', True):
-        horario_df = simulate_horario_df()
-    else:
-        horario_df = dfs['horario']
-    result['horario'] = horario_df
 
-    # Helper to get first dataframe from list or None
-    def get_df(key):
-        val = dfs.get(key)
-        if val is None:
-            return None
-        if isinstance(val, list):
-            return val[0] if len(val) > 0 else None
-        return val
 
-    temp_interna_df = get_df('temp_interna') if not flags.get('temp_interna', True) else None
-    temp_externa_df = get_df('temp_externa') if not flags.get('temp_externa', True) else None
-    estado_aire_df = get_df('estado_aire') if not flags.get('estado_aire', True) else None
-    personas_ubicacion_df = get_df('personas_ubicacion') if not flags.get('personas_ubicacion', True) else None
-    opinion_termica_df = get_df('opinion_termica') if not flags.get('opinion_termica', True) else None
+    def load_schedule(self, file_path_horario='data/Horario de clases.xlsx'):
 
-    if temp_interna_df is not None:
-        temp_interna_df = discretize_temp_interna(temp_interna_df)
-    if temp_externa_df is not None:
-        temp_externa_df = discretize_temp_externa(temp_externa_df)
-    if estado_aire_df is not None:
-        estado_aire_df = discretize_estado_aire(estado_aire_df)
-    if personas_ubicacion_df is not None:
-        personas_ubicacion_df = discretize_n_personas(personas_ubicacion_df)
-        personas_ubicacion_df = discretize_ubicacion(personas_ubicacion_df)
-    if opinion_termica_df is not None:
-        opinion_termica_df = discretize_opinion_termica(opinion_termica_df)
+        df_horario = pd.read_excel(file_path_horario)
 
-    # Progressive merge on ['Fecha', 'Hora']
-    merge_keys = ['Fecha', 'Hora']
-    dfs_to_merge = []
-    if temp_interna_df is not None:
-        dfs_to_merge.append(temp_interna_df)
-    if temp_externa_df is not None:
-        dfs_to_merge.append(temp_externa_df.reset_index(drop=True))
-    if estado_aire_df is not None:
-        dfs_to_merge.append(estado_aire_df)
-    if personas_ubicacion_df is not None:
-        dfs_to_merge.append(personas_ubicacion_df)
-    if opinion_termica_df is not None:
-        dfs_to_merge.append(opinion_termica_df)
 
-    # Start merging
-    if dfs_to_merge:
-        merged_df = dfs_to_merge[0]
-        for next_df in dfs_to_merge[1:]:
-            merged_df = pd.merge(merged_df, next_df, on=merge_keys, how='outer')
-    else:
-        merged_df = pd.DataFrame()
+        days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 
-    # Add horario info if possible (merge by Hora)
-    if not horario_df.empty:
-        merged_df = pd.merge(merged_df, horario_df, on='Hora', how='left')
+        for day in days:
+            # Replace values that are not null and not 'Laboratorio abierto' with 'Clase'
+            mask = (df_horario[day].notna()) & (df_horario[day] != 'Laboratorio abierto')
+            df_horario.loc[mask, day] = 'Clases practicas'
 
-    # Create 'sensedAt_final' from available columns
-    sensedAt_cols = [col for col in merged_df.columns if col.startswith('sensedAt')]
-    if sensedAt_cols:
-        merged_df['sensedAt_final'] = merged_df[sensedAt_cols].bfill(axis=1).iloc[:, 0]
-    else:
-        merged_df['sensedAt_final'] = None
 
-    # Rename and reorganize columns
-    col_map = {
-        'sensedAt_final': 'sensedAt',
-        'temp_discretizada_x': 'temp_interna_discretizada',
-        'temp_discretizada_y': 'temp_externa_discretizada',
-        'estado_del_aire': 'estado_aire',
-        'n_personas_discretizada': 'n_personas',
-        'ubicacion_discretizada': 'ubicacion',
-        'opinion_termica_discretizada': 'opinion_termica',
-    }
-    final_cols = ['sensedAt', 'Fecha', 'Hora', 'temp_interna_discretizada', 'temp_externa_discretizada', 'estado_aire', 'n_personas', 'ubicacion', 'opinion_termica']
-    merged_df = merged_df.rename(columns=col_map)
-    # Only keep columns that exist and ensure uniqueness
-    final_cols = [col for col in final_cols if col in merged_df.columns]
-    # Remove duplicate columns if any
-    df_features = merged_df[final_cols].copy()
-    df_features = df_features.loc[:,~df_features.columns.duplicated()]
 
-    # Add simulated variables at the end if needed
-    df_features = add_simulated_variables(df_features, flags)
-    # Always add 'clases a continuación' using horario_df
-    df_features = add_clases_a_continuacion(df_features, horario_df)
-    return df_features
+        df_horario[['Inicio', 'Fin']] = df_horario['Hora'].str.split('-', expand=True)
+        df_horario = df_horario.drop(columns=['Hora'])
 
-def add_clases_a_continuacion(df_features, df_horario, tiempo=30):
-    """
-    Adds the column 'clases a continuación' to df_features, indicating if there is a class in the next 'tiempo' minutes.
-    df_horario must have columns: 'Hora', 'start_time', 'end_time', and day columns ('Lunes', ...).
-    """
-    # Limpieza inicial
-    df_horario['Hora'] = df_horario['Hora'].str.strip()
-    # Expandimos el rango de horas en una estructura más manejable
-    def expand_range(row):
-        start, end = row['Hora'].split('-')
-        return pd.Series({
-            'start_time': pd.to_datetime(start, format='%H:%M').time(),
-            'end_time': pd.to_datetime(end, format='%H:%M').time()
-        })
-    df_horario[['start_time', 'end_time']] = df_horario.apply(expand_range, axis=1)
-    # Añadir la columna "clases a continuación"
-    df_features['clases a continuación'] = 0  # Falso
-    # Convertir la columna 'Hora' de df_features a objetos time para comparación
-    df_features['Hora_time'] = df_features['Hora'].apply(lambda x: pd.to_datetime(str(x)).time())
-    # Convertir la columna 'Fecha' de df_features a datetime para obtener el día de la semana
-    df_features['Fecha_datetime'] = pd.to_datetime(df_features['Fecha'])
-    # Iterar sobre cada fila de df_features
-    for index, row in df_features.iterrows():
-        current_date = row['Fecha_datetime']
-        current_time = row['Hora_time']
-        day_of_week = current_date.strftime('%A')
-        day_mapping = {
-            'Monday': 'Lunes',
-            'Tuesday': 'Martes',
-            'Wednesday': 'Miércoles',
-            'Thursday': 'Jueves',
-            'Friday': 'Viernes',
-            'Saturday': None,
-            'Sunday': None
+        print("df_horario with 'Inicio' and 'Fin':")
+
+        # ==============================
+        # PREPARAR df_horario
+        # ==============================
+
+        tiempo = 30
+
+
+
+        df_horario['inicio_min'] = df_horario['Inicio'].apply(self.time_to_minutes)
+        df_horario['fin_min'] = df_horario['Fin'].apply(self.time_to_minutes)
+
+
+
+        # ==============================
+        # PREPARAR self.df_features
+        # ==============================
+
+
+        self.df_features['datetime'] = pd.to_datetime(self.df_features['sensedAt'])
+        self.df_features['minutes'] = (
+            self.df_features['datetime'].dt.hour * 60 +
+            self.df_features['datetime'].dt.minute
+        )
+        self.df_features['future_minutes'] = self.df_features['minutes'] + tiempo
+
+        day_map = {
+            0: 'Lunes',
+            1: 'Martes',
+            2: 'Miércoles',
+            3: 'Jueves',
+            4: 'Viernes'
         }
-        day_column = day_mapping.get(day_of_week)
-        if day_column is not None:
-            current_datetime = pd.to_datetime(f'{current_date.strftime("%Y-%m-%d")} {current_time.strftime("%H:%M:%S")}')
-            future_datetime = current_datetime + pd.Timedelta(minutes=tiempo)
-            future_time = future_datetime.time()
-            current_minutes = current_time.hour * 60 + current_time.minute
-            future_minutes = future_time.hour * 60 + future_time.minute
-            for hor_index, hor_row in df_horario.iterrows():
-                hor_start_time = hor_row['start_time']
-                hor_end_time = hor_row['end_time']
-                activity = hor_row[day_column]
-                hor_start_minutes = hor_start_time.hour * 60 + hor_start_time.minute
-                hor_end_minutes = hor_end_time.hour * 60 + hor_end_time.minute
-                if future_minutes < current_minutes:
-                    future_minutes += 24 * 60
-                # Escenario 1: Una clase empieza dentro de los próximos 30 minutos.
-                if current_minutes <= hor_start_minutes < future_minutes:
-                    if activity == 'Clases':
-                        df_features.at[index, 'clases a continuación'] = 1
-                        break
-                # Escenario 2: La hora actual está dentro de una clase que continúa durante los próximos 30 minutos.
-                if hor_start_minutes <= current_minutes < hor_end_minutes:
-                    if activity == 'Clases':
-                        df_features.at[index, 'clases a continuación'] = 1
-                        break
-    # Eliminar las columnas temporales si ya no se necesitan
-    df_features.drop(columns=['Hora_time', 'Fecha_datetime'], inplace=True)
-    return df_features
 
-def add_simulated_variables(df_features, flags):
-    """
-    Adds simulated variables to df_features if needed, using specified probabilities.
-    Does NOT simulate horario.
-    """
-    np.random.seed(42)
-    if flags.get('n_personas', True) and 'n_personas' not in df_features.columns:
-        df_features['n_personas'] = np.random.choice([0, 1, 2], size=len(df_features), p=[0.3, 0.5, 0.2])
-    if flags.get('ubicacion', True) and 'ubicacion' not in df_features.columns:
-        df_features['ubicacion'] = np.random.choice([0, 1, 2], size=len(df_features), p=[0.5, 0.25, 0.25])
-    if flags.get('opinion_termica', True) and 'opinion_termica' not in df_features.columns:
-        df_features['opinion_termica'] = np.random.choice([0, 1, 2], size=len(df_features), p=[0.2, 0.6, 0.2])
-    if flags.get('temp_interna_discretizada', True) and 'temp_interna_discretizada' not in df_features.columns:
-        df_features['temp_interna_discretizada'] = np.random.choice([0, 1, 2], size=len(df_features), p=[0.2, 0.6, 0.2])
-    if flags.get('temp_externa_discretizada', True) and 'temp_externa_discretizada' not in df_features.columns:
-        df_features['temp_externa_discretizada'] = np.random.choice([0, 1, 2], size=len(df_features), p=[0.2, 0.6, 0.2])
-    if flags.get('estado_aire', True) and 'estado_aire' not in df_features.columns:
-        df_features['estado_aire'] = np.random.choice([0, 1], size=len(df_features), p=[0.2, 0.8])
-    return df_features
+        self.df_features['day_col'] = self.df_features['datetime'].dt.weekday.map(day_map)
+
+
+        
+        # ==============================
+        # CÁLCULO PRINCIPAL
+        # ==============================
+        self.df_features['clases_a_continuacion'] = 0
+
+        for _, hrow in df_horario.iterrows():
+            start = hrow['inicio_min']
+            end = hrow['fin_min']
+
+            overlap = (                                               ###Detectar solapamiento temporal
+                (self.df_features['minutes'] < end) &                      ###Esto detecta si la ventana futura intersecta una clase.
+                (self.df_features['future_minutes'] > start)               ###Ejemplo: ahora = 09:40, futuro = 10:10, clase = 09:00–10:00 -> Sí hay solapamiento
+            )
+
+            for day in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']:
+                mask = overlap & (self.df_features['day_col'] == day)
+                clase = self.map_activity(hrow[day])
+
+                self.df_features.loc[mask, 'clases_a_continuacion'] = (
+                    self.df_features.loc[mask, 'clases_a_continuacion']
+                    .clip(lower=clase)
+                )
+
+        # ==============================
+        # LIMPIEZA
+        # ==============================
+        self.df_features.drop(
+            columns=['datetime', 'minutes', 'future_minutes', 'day_col'],
+            inplace=True
+        )
+
+        return df_horario
+
+
+    # =============================================================================================
+    # =============================================================================================
+    # Simulación de número de personas en el aula
+    # =============================================================================================
+    # =============================================================================================
+
+    def actividad_actual(row, df_horario):
+        dia = row['day_col']
+
+        # Fin de semana o día no mapeado
+        if pd.isna(dia):
+            return np.nan
+
+        minuto = row['minutes']
+
+        bloque = df_horario[
+            (df_horario['inicio_min'] <= minuto) &
+            (df_horario['fin_min'] > minuto)
+        ]
+
+        if bloque.empty:
+            return np.nan
+
+        # Puede haber NaN en el horario (y eso es válido)
+        return bloque.iloc[0][dia]
+
+    def personas_objetivo(actividad):
+        if actividad == 'Clases practicas':
+            return np.random.randint(8, 16)
+
+        if actividad == 'Laboratorio abierto':
+            return np.random.randint(0, 6)
+
+        # NaN / sin actividad
+        return np.random.choice(
+            [0, 1, 2, 3, 4],
+            p=[0.80, 0.10, 0.06, 0.03, 0.01]
+        )
+
+    def transicion_suave(actual, objetivo, max_delta=3):
+        if actual < objetivo:
+            return min(actual + np.random.randint(1, max_delta + 1), objetivo)
+        if actual > objetivo:
+            return max(actual - np.random.randint(1, max_delta + 1), objetivo)
+        return actual
+
+
+    def simulate_n_personas(self, df_horario):
+        # ==============================
+        # RECREAR VARIABLES NECESARIAS
+        # ==============================
+
+
+        self.df_features['datetime'] = pd.to_datetime(self.df_features['sensedAt'])
+        self.df_features['minutes'] = (
+            self.df_features['datetime'].dt.hour * 60 +
+            self.df_features['datetime'].dt.minute
+        )
+
+        self.df_features['day_col'] = self.df_features['datetime'].dt.weekday.map({
+            0: 'Lunes',
+            1: 'Martes',
+            2: 'Miércoles',
+            3: 'Jueves',
+            4: 'Viernes'
+        })
+
+
+        n_personas = np.zeros(len(self.df_features), dtype=int)
+        n_personas[0] = 0
+
+        for i in range(1, len(self.df_features)):
+            actividad = self.actividad_actual(self.df_features.loc[i], df_horario)
+            objetivo = self.personas_objetivo(actividad)
+
+            n_personas[i] = self.transicion_suave(
+                actual=n_personas[i - 1],
+                objetivo=objetivo,
+                max_delta=3
+            )
+
+        self.df_features['n_personas'] = n_personas
+
+        self.df_features = self.df_features.drop(columns=['datetime', 'minutes', 'day_col'])
+
+
+    # =============================================================================================
+    # =============================================================================================
+    # Simulación de ubicación de personas en el aula
+    # Archivo en 
+    # directory_path = '/content/Deep_Q_learning/data/analisis en R_data_personas/Personas'
+    # =============================================================================================
+    # =============================================================================================
+
+    def simulate_person_locations(self, directory_path = 'data\analisis en R_data_personas\Personas'):
+
+        all_files_and_dirs = os.listdir(directory_path)
+
+        csv_files = [f for f in all_files_and_dirs if f.endswith('.csv')]
+
+        csv_files_sorted = sorted(csv_files)
+
+        # Initialize an empty dictionary to store DataFrames
+        dataframes_dict = {}
+
+        print(f"CSV files in '{directory_path}' (orden ascendente):")
+        for csv_file in csv_files_sorted:
+            print(csv_file)
+
+            # Construct the full path to the CSV file
+            full_file_path = os.path.join(directory_path, csv_file)
+
+            # Generate a dynamic DataFrame name (e.g., df_523008insert)
+            df_name = 'df_' + os.path.splitext(csv_file)[0]
+
+            # Load the CSV file into a DataFrame and store it in the dictionary
+            dataframes_dict[df_name] = pd.read_csv(full_file_path)
+
+            print(f"Loaded {csv_file} into DataFrame: {df_name}")
+
+        print("\nAll CSV files loaded into DataFrames in 'dataframes_dict'.")
+
+        # =====================================================
+        # ASIGNACIÓN SECUENCIAL DE RUTAS A self.df_features
+        # USANDO dataframes_dict (YA CARGADO)
+        # =====================================================
+
+        import random
+        import pandas as pd
+
+        # -----------------------------------------------------
+        # 1. PREPARAR RUTAS (una por df_5230**insert)
+        # -----------------------------------------------------
+        # dataframes_dict ya existe y contiene:
+        # { 'df_523001insert': df, 'df_523002insert': df, ... }
+
+        rutas = {}
+
+        for key, df_ruta in dataframes_dict.items():
+            df_ruta = df_ruta.copy()
+            df_ruta['Time'] = pd.to_datetime(df_ruta['Time'])
+            rutas[key] = df_ruta
+
+        # -----------------------------------------------------
+        # 2. PREPARAR self.df_features
+        # -----------------------------------------------------
+        df = self.df_features.copy()
+        df['sensedAt'] = pd.to_datetime(df['sensedAt'])
+
+        # columna ubicacion: lista de duplas (x, y)
+        df['ubicacion'] = [[] for _ in range(len(df))]
+
+        # -----------------------------------------------------
+        # 3. POOL DE RUTAS SIN REPETICIÓN
+        # -----------------------------------------------------
+        rutas_ids = list(rutas.keys())
+        random.shuffle(rutas_ids)
+
+        rutas_disponibles = rutas_ids.copy()
+        rutas_usadas = []
+
+        def tomar_ruta():
+            global rutas_disponibles, rutas_usadas
+            if len(rutas_disponibles) == 0:
+                rutas_disponibles = rutas_usadas.copy()
+                rutas_usadas = []
+                random.shuffle(rutas_disponibles)
+            r = rutas_disponibles.pop(0)
+            rutas_usadas.append(r)
+            return r
+
+        # -----------------------------------------------------
+        # 4. ALGORITMO PRINCIPAL (TU PSEUDOCÓDIGO)
+        # -----------------------------------------------------
+        max_personas = int(df['n_personas'].max())
+
+        for k in range(1, max_personas + 1):
+
+            i = 0
+            while i < len(df):
+
+                # buscar inicio de una nueva persona virtual
+                if df.loc[i, 'n_personas'] >= k:
+
+                    ruta_id = tomar_ruta()
+                    ruta = rutas[ruta_id]
+                    j = 0  # índice dentro de la ruta
+
+                    # avanzar mientras la persona "exista"
+                    while (
+                        i < len(df) and
+                        j < len(ruta) and
+                        df.loc[i, 'n_personas'] >= k
+                    ):
+                        x = ruta.iloc[j]['world_x']
+                        y = ruta.iloc[j]['world_y']
+
+                        df.at[i, 'ubicacion'].append((x, y))
+
+                        i += 1
+                        j += 1
+                else:
+                    i += 1
+
+        # -----------------------------------------------------
+        # 5. VERIFICACIÓN DE CONSISTENCIA
+        # -----------------------------------------------------
+        df['check'] = df['ubicacion'].apply(len) == df['n_personas']
+        print(df['check'].value_counts())
+
+        # df es el self.df_features final con ubicaciones asignadas
+
+        self.df_features['ubicacion'] = df['ubicacion']
+
+
+        # =============================================================================================
+        # =============================================================================================
+        # UBICACIÓN RELATIVA DENTRO DEL AULA
+        # =============================================================================================
+        # =============================================================================================
+
+
+        # ==============================
+        # PARÁMETROS
+        # ==============================
+        DISP_TH = 3.0  # umbral de dispersión (ajústalo si es necesario)
+
+        # Rectángulos (x_min, x_max, y_min, y_max)
+        RECT_1 = (0.0, 18.0, -7.5, 1.0)
+        RECT_2 = (0.0, 18.0, -17.5, -7.5)
+
+        # ==============================
+        # FUNCIÓN PRINCIPAL
+        # ==============================
+        def clasificar_ubicacion(lista_puntos):
+            if not lista_puntos or len(lista_puntos) == 0:
+                return 0
+
+            xs = np.array([p[0] for p in lista_puntos], dtype=float)
+            ys = np.array([p[1] for p in lista_puntos], dtype=float)
+
+            mean_x, mean_y = xs.mean(), ys.mean()
+            std_x, std_y = xs.std(), ys.std()
+
+            # Dispersión alta
+            if std_x >= DISP_TH or std_y >= DISP_TH:
+                return 0
+
+            # Dispersión baja → verificar rectángulos
+            if (RECT_1[0] <= mean_x <= RECT_1[1]) and (RECT_1[2] <= mean_y <= RECT_1[3]):
+                return 1
+
+            if (RECT_2[0] <= mean_x <= RECT_2[1]) and (RECT_2[2] <= mean_y <= RECT_2[3]):
+                return 2
+
+            return 0
+
+        # ==============================
+        # APLICAR AL DATAFRAME
+        # ==============================
+        self.df_features['ubicacion_relativa'] = self.df_features['ubicacion'].apply(clasificar_ubicacion)
+
+        import numpy as np
+
+        self.df_features['ubicacion'] = self.df_features['ubicacion'].apply(lambda x: np.nan if len(x) == 0 else x)
+        self.df_features.loc[self.df_features['ubicacion'].isna(), 'ubicacion_relativa'] = np.nan
+
+        """## fin de simulación de ubicación de personas
+
+        #Añadir datos de opinión
+
+        | Variable                         |  Rango discretizado (niveles)                         | N niveles |
+        | :------------------------------- |:--------------------------------------------------- | :-------- |
+        | Panel de opinión térmica       | 0: muy fría, 1: neutra, 2: muy calurosa | 3         |
+        """
+
+        return None
+
+    # =============================================================================================
+    # =============================================================================================
+    # Simulación de opinión térmica
+    # =============================================================================================
+    # =============================================================================================
+
+    def simulate_thermal_opinion(self):
+
+        # Inicializar la columna como NaN
+        self.df_features['thermal_opinion'] = np.nan
+
+        # Máscara: solo filas con personas
+        mask_personas = self.df_features['n_personas'] > 0
+
+        # Asignar valores aleatorios solo a esas filas
+        self.df_features.loc[mask_personas, 'thermal_opinion'] = np.random.choice(
+            [0, 1, 2],
+            size=mask_personas.sum(),
+            p=[0.2, 0.6, 0.2]
+        )
+
+        return None
+
+
+    # =============================================================================================
+    # =============================================================================================
+    # FIN DE LA CLASE data_preprocessing
+    # =============================================================================================
+    # =============================================================================================

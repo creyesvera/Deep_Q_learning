@@ -5,6 +5,7 @@ import torch.optim as optim
 import numpy as np
 from deep_learning import DeepQNetwork
 
+
 class Agent():
     def __init__(self, gamma, epsilon, lr, input_dims, batch_size, n_actions,
                  max_mem_size=100000, eps_end=0.01, eps_dec=5e-4):
@@ -19,7 +20,7 @@ class Agent():
         self.mem_cntr = 0
 
         self.Q_eval = DeepQNetwork(self.lr, n_actions=n_actions, input_dims=input_dims,
-                                   fc1_dims=256, fc2_dims=256)
+                                   fc1_dims=64, fc2_dims=64)
 
         # self.state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)
         # self.new_state_memory = np.zeros((self.mem_size, *input_dims),
@@ -39,20 +40,31 @@ class Agent():
         state_ = np.array(state_, dtype=np.float32).flatten()
         self.state_memory[index] = state
         self.new_state_memory[index] = state_
+        self.action_memory[index] = action          # 🔥 FALTABA
         self.reward_memory[index] = reward
         self.terminal_memory[index] = done
 
         self.mem_cntr += 1
 
-    def choose_action(self, observation):
-        if np.random.random() > self.epsilon:
-            state = T.tensor([observation]).to(self.Q_eval.device)
-            actions = self.Q_eval.forward(state)
-            action = T.argmax(actions).item()
-        else:
-            action = np.random.choice(self.action_space)
+    def choose_action(self, observation, valid_actions):
+        # Exploración (ε)
+        if np.random.random() < self.epsilon:
+            return np.random.choice(valid_actions)
 
+        # Explotación (Q-learning)
+        state = T.tensor([observation], dtype=T.float32).to(self.Q_eval.device)
+
+        q_values = self.Q_eval.forward(state).squeeze(0)
+
+        # Enmascarar acciones inválidas
+        mask = T.full_like(q_values, -1e9)
+        mask[valid_actions] = 0.0
+
+        masked_q = q_values + mask
+
+        action = T.argmax(masked_q).item()
         return action
+
 
 
     def learn(self):
@@ -85,3 +97,5 @@ class Agent():
 
         self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min \
             else self.eps_min
+
+        return loss.item()  # devuelve el error numérico

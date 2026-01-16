@@ -1,1 +1,0 @@
-{"frames":[{"func":"order(df_total$Time)","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0}],"message":"Error en order(df_total$Time): argumento 1 no es un vector\n"}
